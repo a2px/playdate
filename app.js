@@ -54,8 +54,6 @@ const bopping = (html, second) => `<span class="bop ${second ? "b2" : ""}" style
 
 document.getElementById("fig-you").innerHTML = figure(COLORS.you, "wave", 34, false, false);
 document.getElementById("fig-friend").innerHTML = figure(COLORS.friend, "wave", 34, true, false);
-document.getElementById("hero-figs").innerHTML =
-  bopping(figure("#ffd23f", "dance", 54)) + bopping(figure(COLORS.you, "jump", 54, true), true);
 const modeButtons = document.querySelectorAll("#modes button");
 modeButtons[0].insertAdjacentHTML("afterbegin", `<svg width="22" height="16" viewBox="0 0 44 30"><path d="M4 20 L8 10 Q10 6 15 6 L30 6 Q34 6 36 10 L40 20 Z" fill="#ff5fa2" stroke="#111" stroke-width="4" stroke-linejoin="round"/><circle cx="12" cy="22" r="5" fill="#111"/><circle cx="32" cy="22" r="5" fill="#111"/></svg>`);
 modeButtons[1].insertAdjacentHTML("afterbegin", `<svg width="18" height="18" viewBox="0 0 36 36"><rect x="5" y="3" width="26" height="24" rx="6" fill="#16a34a" stroke="#111" stroke-width="4"/><rect x="10" y="8" width="16" height="8" fill="#fff" stroke="#111" stroke-width="3"/><line x1="9" y1="33" x2="13" y2="27" stroke="#111" stroke-width="4" stroke-linecap="round"/><line x1="27" y1="33" x2="23" y2="27" stroke="#111" stroke-width="4" stroke-linecap="round"/></svg>`);
@@ -351,31 +349,8 @@ const state = {
 
 // ---------- map ----------
 
-// Vector map tiles from OpenFreeMap (free, no key), restyled after load in flat Haring colours.
+// Vector map tiles from OpenFreeMap (free, no key), in its standard light style.
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/positron";
-const HARING_MAP = {
-  background: { "background-color": "#fff8e7" },
-  water: { "fill-color": "#6cc4f5" },
-  waterway: { "line-color": "#6cc4f5" },
-  park: { "fill-color": "#9ad97c", "fill-opacity": 0.7 },
-  landcover_wood: { "fill-color": "#9ad97c", "fill-opacity": 0.5 },
-  landuse_residential: { "fill-color": "#fbefd2" },
-  building: { "fill-color": "#f3e2bd", "fill-outline-color": "#d9c49a" },
-  highway_minor: { "line-color": "#ffffff" },
-  highway_path: { "line-color": "#d8c8a4" },
-  highway_major_casing: { "line-color": "#111111" },
-  highway_major_inner: { "line-color": "#ffffff" },
-  highway_major_subtle: { "line-color": "#c9b78f" },
-  highway_motorway_casing: { "line-color": "#111111" },
-  highway_motorway_inner: { "line-color": "#ffd23f" },
-  highway_motorway_subtle: { "line-color": "#e8b923" },
-  highway_motorway_bridge_casing: { "line-color": "#111111" },
-  highway_motorway_bridge_inner: { "line-color": "#ffd23f" },
-  railway_transit: { "line-color": "#e8302a" },
-  railway_transit_dashline: { "line-color": "#ffffff" },
-  railway: { "line-color": "#e8302a" },
-  railway_dashline: { "line-color": "#ffffff" },
-};
 
 const map = new maplibregl.Map({
   container: "map",
@@ -397,16 +372,6 @@ function dashFor(width, transit) {
 }
 
 map.on("load", () => {
-  for (const [layer, paint] of Object.entries(HARING_MAP)) {
-    if (!map.getLayer(layer)) continue;
-    for (const [prop, value] of Object.entries(paint)) map.setPaintProperty(layer, prop, value);
-  }
-  for (const layer of map.getStyle().layers) {
-    if (layer.type === "symbol") {
-      map.setPaintProperty(layer.id, "text-color", "#111111");
-      map.setPaintProperty(layer.id, "text-halo-color", "#fff8e7");
-    }
-  }
   const empty = { type: "FeatureCollection", features: [] };
   map.addSource("area", { type: "geojson", data: empty });
   map.addSource("routes", { type: "geojson", data: empty });
