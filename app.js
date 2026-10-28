@@ -285,7 +285,9 @@ async function addSummaries(spots) {
   const params = new URLSearchParams({ action: "query", format: "json", origin: "*", prop: "extracts", exintro: "1",
     explaintext: "1", exsentences: "2", exlimit: "max", redirects: "1", titles: titles.join("|") });
   try {
-    const j = await getJson(`${SERVICES.wikipedia}?${params}`, "Wikipedia");
+    // Wikipedia sometimes turns a request away for a moment; one retry usually gets through.
+    const url = `${SERVICES.wikipedia}?${params}`;
+    const j = await getJson(url, "Wikipedia").catch(() => sleep(1500).then(() => getJson(url, "Wikipedia")));
     const byTitle = new Map(Object.values(j.query.pages).map((p) => [p.title, p.extract]));
     const renamed = new Map((j.query.redirects || []).concat(j.query.normalized || []).map((r) => [r.from, r.to]));
     spots.forEach((s, i) => { s.summary = byTitle.get(renamed.get(titles[i]) || titles[i]) || ""; });
@@ -349,48 +351,140 @@ const state = {
 
 // ---------- map ----------
 
-const map = L.map("map", { zoomControl: true }).setView([37.79, -122.35], 10);
-L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  attribution: "&copy; OpenStreetMap contributors", maxZoom: 19,
-}).addTo(map);
-const layer = L.layerGroup().addTo(map);
+// Vector map tiles from OpenFreeMap (free, no key), restyled after load in flat Haring colours.
+const MAP_STYLE = "https://tiles.openfreemap.org/styles/positron";
+const HARING_MAP = {
+  background: { "background-color": "#fff8e7" },
+  water: { "fill-color": "#6cc4f5" },
+  waterway: { "line-color": "#6cc4f5" },
+  park: { "fill-color": "#9ad97c", "fill-opacity": 0.7 },
+  landcover_wood: { "fill-color": "#9ad97c", "fill-opacity": 0.5 },
+  landuse_residential: { "fill-color": "#fbefd2" },
+  building: { "fill-color": "#f3e2bd", "fill-outline-color": "#d9c49a" },
+  highway_minor: { "line-color": "#ffffff" },
+  highway_path: { "line-color": "#d8c8a4" },
+  highway_major_casing: { "line-color": "#111111" },
+  highway_major_inner: { "line-color": "#ffffff" },
+  highway_major_subtle: { "line-color": "#c9b78f" },
+  highway_motorway_casing: { "line-color": "#111111" },
+  highway_motorway_inner: { "line-color": "#ffd23f" },
+  highway_motorway_subtle: { "line-color": "#e8b923" },
+  highway_motorway_bridge_casing: { "line-color": "#111111" },
+  highway_motorway_bridge_inner: { "line-color": "#ffd23f" },
+  railway_transit: { "line-color": "#e8302a" },
+  railway_transit_dashline: { "line-color": "#ffffff" },
+  railway: { "line-color": "#e8302a" },
+  railway_dashline: { "line-color": "#ffffff" },
+};
+
+const map = new maplibregl.Map({
+  container: "map",
+  style: MAP_STYLE,
+  center: [-122.35, 37.79],
+  zoom: 9.5,
+  attributionControl: { compact: true },
+});
+map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
+
+let mapReady = false;
+const markers = [];
+
+// Line dashes are measured in line widths, so the black outline and the colour on top
+// get dash patterns scaled to their widths; round caps then make the outline show.
+function dashFor(width, transit) {
+  const [on, off] = transit ? [0.01, 13] : [14, 11];
+  return [on / width, off / width];
+}
+
+map.on("load", () => {
+  for (const [layer, paint] of Object.entries(HARING_MAP)) {
+    if (!map.getLayer(layer)) continue;
+    for (const [prop, value] of Object.entries(paint)) map.setPaintProperty(layer, prop, value);
+  }
+  for (const layer of map.getStyle().layers) {
+    if (layer.type === "symbol") {
+      map.setPaintProperty(layer.id, "text-color", "#111111");
+      map.setPaintProperty(layer.id, "text-halo-color", "#fff8e7");
+    }
+  }
+  const empty = { type: "FeatureCollection", features: [] };
+  map.addSource("area", { type: "geojson", data: empty });
+  map.addSource("routes", { type: "geojson", data: empty });
+  map.addLayer({ id: "area-fill", type: "fill", source: "area", paint: { "fill-color": "#ffd23f", "fill-opacity": 0.3 } });
+  map.addLayer({ id: "area-edge", type: "line", source: "area",
+    paint: { "line-color": "#111111", "line-width": 4, "line-dasharray": [2.5, 2] } });
+  for (const who of ["you", "friend"]) {
+    const filter = ["==", ["get", "who"], who];
+    map.addLayer({ id: `route-${who}-edge`, type: "line", source: "routes", filter,
+      layout: { "line-cap": "round" }, paint: { "line-color": "#111111", "line-width": 9 } });
+    map.addLayer({ id: `route-${who}`, type: "line", source: "routes", filter,
+      layout: { "line-cap": "round" }, paint: { "line-color": COLORS[who], "line-width": 5 } });
+  }
+  // Start with the map credits folded into the (i) button, so they don't cover the map on phones.
+  document.querySelector(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show");
+  mapReady = true;
+  drawMap();
+});
+
+function circlePolygon([lat, lng], radiusM) {
+  const ring = [];
+  for (let i = 0; i <= 64; i++) {
+    const t = (i / 64) * 2 * Math.PI;
+    const dLat = (radiusM * Math.cos(t)) / 111320;
+    const dLng = (radiusM * Math.sin(t)) / (111320 * Math.cos(lat * Math.PI / 180));
+    ring.push([lng + dLng, lat + dLat]);
+  }
+  return { type: "Feature", geometry: { type: "Polygon", coordinates: [ring] }, properties: {} };
+}
+
+function addMarker(pos, html, className) {
+  const el = document.createElement("div");
+  el.className = className;
+  el.innerHTML = html;
+  markers.push(new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat([pos[1], pos[0]]).addTo(map));
+}
 
 function personMarker(pos, name, color, flip) {
-  const icon = L.divIcon({ className: "", iconSize: [54, 54], iconAnchor: [27, 50], html: figure(color, "wave", 54, flip) });
-  L.marker(pos, { icon }).addTo(layer)
-    .bindTooltip(`<span class="who">${name}</span>`, { permanent: true, direction: "bottom", offset: [0, 4], className: "plain" });
+  addMarker(pos, `${figure(color, "wave", 54, flip)}<span class="who">${name}</span>`, "person-marker");
 }
 
 function meetMarker(center) {
-  const html = `<div style="display:flex;align-items:flex-end;justify-content:center;width:84px">
-    ${figure(COLORS.you, "reach", 46, false, false)}<span style="margin-left:-14px">${figure(COLORS.friend, "reach", 46, true, false)}</span></div>`;
-  const icon = L.divIcon({ className: "", iconSize: [84, 52], iconAnchor: [42, 48], html });
   // Sit the pair on the circle's top edge so they never cover what is inside it.
   const top = [center[0] + state.radiusM / 111320, center[1]];
-  L.marker(top, { icon, zIndexOffset: 1000, interactive: false }).addTo(layer);
+  addMarker(top, `${figure(COLORS.you, "reach", 46, false, false)}<span style="margin-left:-14px">${figure(COLORS.friend, "reach", 46, true, false)}</span>`, "meet-marker");
 }
 
 function drawMap() {
-  layer.clearLayers();
+  if (!mapReady) return;
+  markers.splice(0).forEach((m) => m.remove());
   const areas = state.results[state.mode];
   const area = areas && areas[state.selected];
+  const transit = state.mode === "transit";
+  const routes = [];
   if (area) {
-    const dash = state.mode === "transit" ? "1 12" : "14 10";
-    for (const [p, c] of [[state.you.pos, COLORS.you], [state.friend.pos, COLORS.friend]]) {
-      L.polyline([p, area.pos], { color: "#111", weight: 9, opacity: .9, dashArray: dash, lineCap: "round" }).addTo(layer);
-      L.polyline([p, area.pos], { color: c, weight: 5, dashArray: dash, lineCap: "round" }).addTo(layer);
+    for (const [who, p] of [["you", state.you.pos], ["friend", state.friend.pos]]) {
+      routes.push({ type: "Feature", properties: { who },
+        geometry: { type: "LineString", coordinates: [[p[1], p[0]], [area.pos[1], area.pos[0]]] } });
+      map.setPaintProperty(`route-${who}-edge`, "line-dasharray", dashFor(9, transit));
+      map.setPaintProperty(`route-${who}`, "line-dasharray", dashFor(5, transit));
     }
-    L.circle(area.pos, { radius: state.radiusM, color: "#111", weight: 4, dashArray: "10 8", fillColor: "#ffd23f", fillOpacity: .28 }).addTo(layer);
   }
+  map.getSource("routes").setData({ type: "FeatureCollection", features: routes });
+  map.getSource("area").setData({ type: "FeatureCollection", features: area ? [circlePolygon(area.pos, state.radiusM)] : [] });
   if (state.you.pos) personMarker(state.you.pos, "You", COLORS.you, false);
   if (state.friend.pos) personMarker(state.friend.pos, "Friend", COLORS.friend, true);
+  const padding = isPhone() ? 30 : 60;
   if (area) {
     meetMarker(area.pos);
-    map.flyToBounds(L.latLng(area.pos).toBounds(state.radiusM * (isPhone() ? 2.3 : 2.8)), { duration: .6 });
+    const r = state.radiusM * 1.3;
+    const dLat = r / 111320, dLng = r / (111320 * Math.cos(area.pos[0] * Math.PI / 180));
+    map.fitBounds([[area.pos[1] - dLng, area.pos[0] - dLat], [area.pos[1] + dLng, area.pos[0] + dLat]],
+      { padding: { top: padding + 50, bottom: padding, left: padding, right: padding }, duration: 700 });
   } else if (state.you.pos && state.friend.pos) {
-    map.fitBounds([state.you.pos, state.friend.pos], { padding: [60, 60] });
+    map.fitBounds([[state.you.pos[1], state.you.pos[0]], [state.friend.pos[1], state.friend.pos[0]]],
+      { padding: padding + 40, duration: 700 });
   } else if (state.you.pos) {
-    map.setView(state.you.pos, 13);
+    map.flyTo({ center: [state.you.pos[1], state.you.pos[0]], zoom: 13, duration: 700 });
   }
 }
 
@@ -573,7 +667,6 @@ $("results").addEventListener("click", (e) => {
   if (area && +area.dataset.idx !== state.selected) { state.selected = +area.dataset.idx; renderList(); drawMap(); }
 });
 
-window.addEventListener("resize", () => map.invalidateSize());
 
 renderStart();
 locate();
