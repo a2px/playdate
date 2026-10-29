@@ -15,14 +15,15 @@
 <div id="panel">
   <div id="hero">
     <div><h1>Playdate</h1><p class="tag">Let's meet in the middle!</p></div>
-    <div id="hero-art" role="img" aria-label="Two stick figures dancing, with a heart between them"></div>
+    <div id="hero-art" role="img" aria-label="Two friends with a treasure flag between them"></div>
   </div>
   <form id="search" autocomplete="off">
     <div class="field"><span id="fig-you"></span><label for="you">You</label>
-      <div class="locwrap"><input id="you" placeholder="Your address" enterkeyhint="next">
+      <div class="locwrap"><input id="you" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="you-suggest" placeholder="Your address" enterkeyhint="next">
+      <ul id="you-suggest" class="suggest" role="listbox" hidden></ul>
       <button id="locate" type="button" title="Use my location" aria-label="Use my location"><svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5" fill="#d6eefc" stroke="#6b5545" stroke-width="2.4"/><circle cx="12" cy="12" r="2.4" fill="#6b5545"/><path d="M12 1.5v3.5M12 19v3.5M1.5 12h3.5M19 12h3.5" stroke="#6b5545" stroke-width="2.4" stroke-linecap="round"/></svg></button></div></div>
     <div id="lochint"></div>
-    <div class="field"><span id="fig-friend"></span><label for="friend">Friend</label><input id="friend" placeholder="Friend's address" enterkeyhint="go"></div>
+    <div class="field"><span id="fig-friend"></span><label for="friend">Friend</label><div class="locwrap"><input id="friend" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="friend-suggest" placeholder="Friend's address" enterkeyhint="go"><ul id="friend-suggest" class="suggest" role="listbox" hidden></ul></div></div>
     <div class="modes" id="modes">
       <button type="button" data-mode="drive" class="on">Driving</button>
       <button type="button" data-mode="transit">Public transit</button>

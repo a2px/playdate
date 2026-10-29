@@ -42,7 +42,7 @@ h1 { font-family: var(--heading); font-weight: 700; font-size: 32px; line-height
   letter-spacing: -.02em; }
 .tag { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
 #hero-art { display: flex; align-items: flex-end; flex: none; }
-.hero-heart { margin: 0 -6px 26px; z-index: 1; }
+.hero-flag { margin: 0 2px 4px; }
 
 #search { padding: 10px 22px 18px; }
 .field { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
@@ -119,6 +119,16 @@ h1 { font-family: var(--heading); font-weight: 700; font-size: 32px; line-height
 .radius button.on { background: var(--mint); color: #fff; }
 .footnote { font-size: 12px; color: var(--muted); padding: 4px 22px 22px; }
 
+/* Address suggestions under each box. */
+.suggest { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20; margin: 0; padding: 6px; list-style: none;
+  background: #fff; border-radius: 20px; box-shadow: 0 10px 30px rgba(107, 85, 69, .18), 0 1px 3px rgba(107, 85, 69, .1); }
+.suggest li { display: flex; gap: 10px; align-items: center; padding: 9px 12px; border-radius: 14px; cursor: pointer; }
+.suggest li:hover, .suggest li.on { background: var(--soft); }
+.suggest li svg { flex: none; }
+.suggest li span { min-width: 0; display: flex; flex-direction: column; }
+.suggest b { font-size: 14px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.suggest small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 /* Places around the selected spot: tabs, numbered rows, and matching pins on the map. */
 .tabs { display: flex; gap: 6px; margin: 14px 0 4px; }
 .tabs button { border: 0; background: var(--soft); border-radius: 999px; padding: 7px 14px; cursor: pointer; font-weight: 800; font-size: 13px; color: var(--muted); }
@@ -127,7 +137,8 @@ h1 { font-family: var(--heading); font-weight: 700; font-size: 32px; line-height
 .place { display: flex; gap: 10px; align-items: center; padding: 7px 8px; margin: 0 -8px; border-radius: 14px; cursor: pointer; }
 .place:hover, .place.hl { background: var(--soft); }
 .place .n, .pin { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; flex: none;
-  font-size: 12px; font-weight: 800; color: #fff; }
+  font-size: 12px; font-weight: 800; color: #fff; line-height: 1; font-variant-numeric: tabular-nums; }
+.pin-wrap { line-height: 1; } /* the map sets a taller line height on markers, which pushed the numbers off centre */
 .n.eat, .pin.eat { background: var(--friend); }
 .n.see, .pin.see { background: var(--mint); }
 .place-text { min-width: 0; }
@@ -175,7 +186,7 @@ h1 { font-family: var(--heading); font-weight: 700; font-size: 32px; line-height
   #panel { display: contents; }
   #hero { order: 1; padding: 16px 18px 4px; }
   h1 { font-size: 30px; }
-  #hero-art .bob svg { width: 46px; height: 46px; }
+  #hero-art .bob svg { width: 38px; height: 46px; }
   #search { order: 2; padding: 10px 18px 16px; }
   #map { order: 3; height: 52vh; }
   #results { order: 4; overflow: visible; }
@@ -184,3 +195,7 @@ h1 { font-family: var(--heading); font-weight: 700; font-size: 32px; line-height
   .routes a { padding: 4px 0; }
   .radius button { padding: 7px 13px; }
 }
+/* Keep the flag and the two friends above the place pins, and hide the pins when zoomed too far out to tell them apart. */
+.maplibregl-marker.meet-marker { z-index: 3; }
+.maplibregl-marker.person-marker { z-index: 2; }
+#map.far .pin-wrap { display: none; }

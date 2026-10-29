@@ -7,6 +7,7 @@ const SERVICES = {
   reverse: "https://nominatim.openstreetmap.org/reverse",
   driveTable: "https://router.project-osrm.org/table/v1/driving/",
   transitFromOne: "https://api.transitous.org/api/v1/one-to-all",
+  suggest: "https://photon.komoot.io/api/",
   wikidata: "https://query.wikidata.org/sparql",
   wikipedia: "https://en.wikipedia.org/w/api.php",
   // OpenStreetMap's place search runs on volunteer servers that are often busy; try each in turn.
@@ -38,36 +39,33 @@ const MAX_SNAP_M = 400; // a driving sample further than this from a road is in 
 
 const INK = "#6b5545"; // warm brown for faces and outlines
 
-// Stick figures: a round head and thick limbs with a soft brown outline. You are blue, your friend is peach.
-const POSES = {
-  wave:  { head: [50, 20], lines: [[50,34,50,62],[50,40,28,24],[50,40,72,50],[50,62,34,90],[50,62,68,88]] },
-  jump:  { head: [50, 20], lines: [[50,34,50,60],[50,40,26,18],[50,40,74,18],[50,60,30,80],[50,60,70,80]] },
-  dance: { head: [46, 20], lines: [[48,34,54,60],[50,40,74,28],[50,40,26,54],[54,60,30,84],[54,60,74,90]] },
-};
+// The two friends: chunky round-headed figures with short arms up, drawn as one flat
+// shape with a soft brown outline. You are blue, your friend is peach.
+const FIGURE_BODY = "M32 53 Q50 46 68 53 L70.5 83 L72 109 Q64 113 56 110 L54.5 88 Q50 81 45.5 88 L44 111 Q37 114 30 111 L30.5 83 Z";
+const FIGURE_ARMS = ["M38 61 Q21 61 17 42", "M62 60 Q79 59 83 41"];
 
-function figure(color, pose = "wave", size = 40, flip = false, motion = false) {
-  const p = POSES[pose];
-  const seg = (w, c) => p.lines.map(([a, b, c2, d]) =>
-    `<line x1="${a}" y1="${b}" x2="${c2}" y2="${d}" stroke="${c}" stroke-width="${w}" stroke-linecap="round"/>`).join("");
-  const rays = motion
-    ? [[p.head[0] - 20, 6, p.head[0] - 26, 0], [p.head[0], 0, p.head[0], -6], [p.head[0] + 20, 6, p.head[0] + 26, 0]]
-      .map(([a, b, c, d]) => `<line x1="${a}" y1="${b}" x2="${c}" y2="${d}" stroke="${color}" stroke-width="4.5" stroke-linecap="round"/>`).join("")
-    : "";
-  return `<svg width="${size}" height="${size}" viewBox="-4 -10 108 108" style="${flip ? "transform:scaleX(-1)" : ""};overflow:visible" aria-hidden="true">
-    ${rays}${seg(18, INK)}<circle cx="${p.head[0]}" cy="${p.head[1]}" r="13.5" fill="${INK}"/>
-    ${seg(11, color)}<circle cx="${p.head[0]}" cy="${p.head[1]}" r="10" fill="${color}"/></svg>`;
+function figure(color, size = 40, flip = false) {
+  const arms = FIGURE_ARMS;
+  const shape = (fill, grow) => `
+    ${arms.map((d) => `<path d="${d}" fill="none" stroke="${fill}" stroke-width="${15 + grow}" stroke-linecap="round"/>`).join("")}
+    <path d="${FIGURE_BODY}" fill="${fill}" stroke="${fill}" stroke-width="${grow || 0.01}" stroke-linejoin="round"/>
+    <circle cx="50" cy="29" r="${20 + grow / 2}" fill="${fill}"/>`;
+  return `<svg width="${size}" height="${size * 1.2}" viewBox="0 0 100 120" style="${flip ? "transform:scaleX(-1);" : ""}overflow:visible" aria-hidden="true">
+    ${shape(INK, 7)}${shape(color, 0)}</svg>`;
 }
 
-const you = (size, pose = "wave", motion = false) => figure(COLORS.you, pose, size, false, motion);
-const pal = (size, pose = "wave", motion = false) => figure(COLORS.friend, pose, size, true, motion);
+const you = (size) => figure(COLORS.you, size, false);
+const pal = (size) => figure(COLORS.friend, size, true);
 
-// A round pin with a heart in it: where the two friends meet.
-function meetPin(size = 44) {
-  return `<svg width="${size}" height="${size * 1.2}" viewBox="0 0 100 120" aria-hidden="true">
-    <ellipse cx="50" cy="114" rx="16" ry="4.5" fill="#000" opacity=".12"/>
-    <path d="M50 112 C38 92 12 76 12 48 a38 38 0 0 1 76 0 C88 76 62 92 50 112 Z" fill="#ff9fb6" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>
-    <circle cx="50" cy="47" r="25" fill="#fff"/>
-    <path d="M50 60 C38 51 34 45 37 40 a7 7 0 0 1 13 -1 a7 7 0 0 1 13 1 c3 5 -1 11 -13 20 Z" fill="#ff7c9c"/>
+// The meeting spot, marked like treasure on a pirate map: a flag planted on a big X.
+function treasureFlag(size = 40) {
+  return `<svg width="${size}" height="${size * 1.5}" viewBox="0 0 50 75" aria-hidden="true">
+    <ellipse cx="18" cy="63" rx="13" ry="3.5" fill="#000" opacity=".1"/>
+    <path d="M9 54 L27 68 M27 54 L9 68" stroke="${INK}" stroke-width="7.5" stroke-linecap="round"/>
+    <path d="M9 54 L27 68 M27 54 L9 68" stroke="#ff6b6b" stroke-width="4" stroke-linecap="round"/>
+    <path d="M18 61 V5" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M19 5 C27 2 33 9 46 6 C42 12 42 18 46 24 C33 27 27 20 19 24 Z" fill="#ff8f8f" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>
+    <circle cx="18" cy="4" r="3" fill="#ffd166" stroke="${INK}" stroke-width="2"/>
   </svg>`;
 }
 
@@ -78,9 +76,9 @@ const ICONS = {
 
 const bobbing = (html, second) => `<span class="bob ${second ? "b2" : ""}">${html}</span>`;
 
-document.getElementById("fig-you").innerHTML = you(36);
-document.getElementById("fig-friend").innerHTML = pal(36);
-document.getElementById("hero-art").innerHTML = bobbing(you(54, "dance", true)) + `<span class="hero-heart">${meetPin(26)}</span>` + bobbing(pal(54, "jump", true), true);
+document.getElementById("fig-you").innerHTML = you(32);
+document.getElementById("fig-friend").innerHTML = pal(32);
+document.getElementById("hero-art").innerHTML = bobbing(you(44)) + `<span class="hero-flag">${treasureFlag(30)}</span>` + bobbing(pal(44), true);
 const modeButtons = document.querySelectorAll("#modes button");
 modeButtons[0].insertAdjacentHTML("afterbegin", ICONS.car);
 modeButtons[1].insertAdjacentHTML("afterbegin", ICONS.train);
@@ -388,6 +386,10 @@ const map = new maplibregl.Map({
   attributionControl: { compact: true },
 });
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
+// Place pins only make sense close up; zoomed out they pile onto the flag.
+const PLACE_PINS_MIN_ZOOM = 13;
+map.on("zoom", () => $("map").classList.toggle("far", map.getZoom() < PLACE_PINS_MIN_ZOOM));
+$("map").classList.add("far");
 
 let mapReady = false;
 const markers = [];
@@ -465,19 +467,20 @@ function circlePolygon([lat, lng], radiusM) {
   return { type: "Feature", geometry: { type: "Polygon", coordinates: [ring] }, properties: {} };
 }
 
-function addMarker(pos, html, className) {
+function addMarker(pos, html, className, offset = [0, 0]) {
   const el = document.createElement("div");
   el.className = className;
   el.innerHTML = html;
-  markers.push(new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat([pos[1], pos[0]]).addTo(map));
+  markers.push(new maplibregl.Marker({ element: el, anchor: "bottom", offset }).setLngLat([pos[1], pos[0]]).addTo(map));
 }
 
 function personMarker(pos, name) {
-  addMarker(pos, `${name === "You" ? you(52) : pal(52)}<span class="who">${name}</span>`, "person-marker");
+  addMarker(pos, `${name === "You" ? you(40) : pal(40)}<span class="who">${name}</span>`, "person-marker");
 }
 
 function meetMarker(center) {
-  addMarker(center, meetPin(44), "meet-marker");
+  // Shift the flag so the middle of its X, not the bottom of the picture, sits on the spot.
+  addMarker(center, treasureFlag(36), "meet-marker", [5, 5]);
 }
 
 function drawMap() {
@@ -541,20 +544,20 @@ function googleSearch(what, a) {
 
 function renderStart() {
   $("results").innerHTML = `<div class="state">
-    <div class="figs">${you(60)}${pal(60)}</div>
+    <div class="figs">${you(54)}${pal(54)}</div>
     <p class="big">Where are you two?</p>
     <p>Add both addresses and pick how you're getting there. We'll find spots that take you about the same time.</p></div>`;
 }
 
 function renderBusy(text) {
   $("results").innerHTML = `<div class="state">
-    <div class="figs">${bobbing(you(60, "dance"))}${bobbing(pal(60, "jump"), true)}</div>
+    <div class="figs">${bobbing(you(54))}${bobbing(pal(54), true)}</div>
     <p class="big">${esc(text)}</p></div>`;
 }
 
 function renderError(message) {
   $("results").innerHTML = `<div class="state error">
-    <div class="figs">${you(60, "jump")}</div>
+    <div class="figs">${you(54)}</div>
     <p class="big">Hmm, that didn't work</p><p>${esc(message)}</p></div>`;
 }
 
@@ -562,7 +565,7 @@ function renderList() {
   const areas = state.results[state.mode];
   if (!areas) return renderStart();
   $("results").innerHTML =
-    `<div class="section-title">${state.mode === "drive" ? "Fairest spots by car" : "Fairest spots by transit"}</div>` +
+    `<div class="section-title">${state.mode === "drive" ? "Best spots by car" : "Best spots by transit"}</div>` +
     areas.map((a, idx) => {
       const you = Math.round(a.you), friend = Math.round(a.friend);
       const gap = Math.abs(you - friend), total = you + friend || 1;
@@ -837,9 +840,114 @@ function locate() {
   }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
 }
 
+// ---------- address suggestions while typing ----------
+
+const SUGGEST_MIN_CHARS = 3;
+const SUGGEST_DELAY_MS = 250;
+const SUGGEST_COUNT = 5;
+
+function suggestionLabel(p) {
+  const street = [p.housenumber, p.street].filter(Boolean).join(" ");
+  const title = p.name || street || p.city || "";
+  const where = [p.name ? street : "", p.city || p.county, p.state].filter(Boolean);
+  return { title, detail: where.join(", "), full: [title, ...where].join(", ") };
+}
+
+async function fetchSuggestions(text, near, signal) {
+  const ask = async (bounded) => {
+    const params = new URLSearchParams({ q: text, limit: String(SUGGEST_COUNT + 3), lang: "en" });
+    if (near) {
+      params.set("lat", near[0]); params.set("lon", near[1]);
+      if (bounded) params.set("bbox", [near[1] - 1.5, near[0] - 1.5, near[1] + 1.5, near[0] + 1.5].join(","));
+    }
+    const r = await fetch(`${SERVICES.suggest}?${params}`, { signal });
+    return r.ok ? (await r.json()).features : [];
+  };
+  // Prefer places near the other person (or you); fall back to anywhere when nothing nearby matches.
+  let found = await ask(Boolean(near));
+  if (near && found.length < 3) found = found.concat(await ask(false));
+  const seen = new Set();
+  const out = [];
+  for (const f of found) {
+    const label = suggestionLabel(f.properties);
+    if (!label.title || seen.has(label.full)) continue;
+    seen.add(label.full);
+    out.push({ ...label, pos: [f.geometry.coordinates[1], f.geometry.coordinates[0]], raw: f });
+    if (out.length === SUGGEST_COUNT) break;
+  }
+  return out;
+}
+
+function attachSuggestions(who) {
+  const input = $(who), list = $(`${who}-suggest`);
+  let items = [], active = -1, timer = null, controller = null;
+
+  const close = () => { list.hidden = true; input.setAttribute("aria-expanded", "false"); active = -1; };
+  const paint = () => {
+    list.innerHTML = items.map((s, i) => `
+      <li role="option" id="${who}-opt-${i}" class="${i === active ? "on" : ""}" aria-selected="${i === active}" data-i="${i}">
+        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-7.2 7-12.5A7 7 0 0 0 5 9.5C5 14.8 12 22 12 22Z" fill="${who === "you" ? "#d6eefc" : "#ffe4d3"}" stroke="${INK}" stroke-width="2"/><circle cx="12" cy="9.5" r="2.4" fill="${INK}"/></svg>
+        <span><b>${esc(s.title)}</b>${s.detail ? `<small>${esc(s.detail)}</small>` : ""}</span></li>`).join("");
+    list.hidden = !items.length;
+    input.setAttribute("aria-expanded", String(items.length > 0));
+    if (active >= 0) input.setAttribute("aria-activedescendant", `${who}-opt-${active}`);
+    else input.removeAttribute("aria-activedescendant");
+  };
+  const choose = (s) => {
+    input.value = s.full;
+    // Picking a suggestion already gives the exact spot, so the search skips looking it up again.
+    state[who] = { label: s.full, query: s.full, pos: s.pos, fromDevice: false };
+    if (who === "you") hint("");
+    items = []; close();
+    drawMap();
+  };
+
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    const text = input.value.trim();
+    if (text.length < SUGGEST_MIN_CHARS) { items = []; close(); return; }
+    timer = setTimeout(async () => {
+      controller?.abort();
+      controller = new AbortController();
+      const other = who === "you" ? state.friend.pos : state.you.pos;
+      try {
+        items = await fetchSuggestions(text, other || state[who].pos, controller.signal);
+        active = -1;
+        if (document.activeElement === input) paint();
+      } catch (e) {
+        // a newer keystroke cancelled this one, or the service is unreachable: just show nothing
+      }
+    }, SUGGEST_DELAY_MS);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (list.hidden) return;
+    if (e.key === "ArrowDown") { active = (active + 1) % items.length; paint(); e.preventDefault(); }
+    else if (e.key === "ArrowUp") { active = (active - 1 + items.length) % items.length; paint(); e.preventDefault(); }
+    else if (e.key === "Enter" && active >= 0) { choose(items[active]); e.preventDefault(); }
+    else if (e.key === "Escape") close();
+  });
+  // Keep focus in the box while pressing a suggestion (so the list stays open), and pick on click:
+  // closing the list on press would let the same tap land on whatever was underneath it.
+  list.addEventListener("pointerdown", (e) => e.preventDefault());
+  list.addEventListener("click", (e) => {
+    const li = e.target.closest("li");
+    if (li) choose(items[+li.dataset.i]);
+  });
+  input.addEventListener("blur", () => setTimeout(close, 120));
+  input.addEventListener("focus", () => { if (items.length) paint(); });
+}
+
+attachSuggestions("you");
+attachSuggestions("friend");
+
 // ---------- events ----------
 
-$("search").addEventListener("submit", (e) => { e.preventDefault(); search(); });
+$("search").addEventListener("submit", (e) => {
+  e.preventDefault();
+  document.querySelectorAll(".suggest").forEach((l) => { l.hidden = true; });
+  document.activeElement?.blur(); // also puts the phone keyboard away and stops a late suggestion reopening the list
+  search();
+});
 $("locate").addEventListener("click", locate);
 $("you").addEventListener("input", () => hint(""));
 
