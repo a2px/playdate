@@ -6,7 +6,7 @@
 <title>Playdate</title>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;600;700;800&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
 <link rel="stylesheet" href="style.css">
@@ -14,13 +14,13 @@
 <body>
 <div id="panel">
   <div id="hero">
-    <div><h1>Playdate</h1><p class="tag">Meet in the middle. Fair and square.</p></div>
-    <img id="hero-art" src="header-art.svg" alt="Two friends reaching for a map pin between them">
+    <div><h1>Playdate</h1><p class="tag">Let's meet in the middle!</p></div>
+    <div id="hero-art" role="img" aria-label="Two stick figures dancing, with a heart between them"></div>
   </div>
   <form id="search" autocomplete="off">
     <div class="field"><span id="fig-you"></span><label for="you">You</label>
       <div class="locwrap"><input id="you" placeholder="Your address" enterkeyhint="next">
-      <button id="locate" type="button" title="Use my location" aria-label="Use my location"><svg width="18" height="18" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="none" stroke="#111" stroke-width="3"/><circle cx="12" cy="12" r="2.2" fill="#e8302a"/><path d="M12 1v5M12 18v5M1 12h5M18 12h5" stroke="#111" stroke-width="3" stroke-linecap="round"/></svg></button></div></div>
+      <button id="locate" type="button" title="Use my location" aria-label="Use my location"><svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5" fill="#d6eefc" stroke="#6b5545" stroke-width="2.4"/><circle cx="12" cy="12" r="2.4" fill="#6b5545"/><path d="M12 1.5v3.5M12 19v3.5M1.5 12h3.5M19 12h3.5" stroke="#6b5545" stroke-width="2.4" stroke-linecap="round"/></svg></button></div></div>
     <div id="lochint"></div>
     <div class="field"><span id="fig-friend"></span><label for="friend">Friend</label><input id="friend" placeholder="Friend's address" enterkeyhint="go"></div>
     <div class="modes" id="modes">

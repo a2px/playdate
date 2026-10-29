@@ -9,6 +9,12 @@ const SERVICES = {
   transitFromOne: "https://api.transitous.org/api/v1/one-to-all",
   wikidata: "https://query.wikidata.org/sparql",
   wikipedia: "https://en.wikipedia.org/w/api.php",
+  // OpenStreetMap's place search runs on volunteer servers that are often busy; try each in turn.
+  overpass: [
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+  ],
 };
 
 // The kinds of place that make a good hangout, as Wikidata knows them. The bonus is
@@ -23,40 +29,61 @@ const SPOT_KINDS = {
 };
 const MAX_WALK_TO_STOP_M = 800;
 const WALK_M_PER_MIN = 75;
-const COLORS = { you: "#1f6fe0", friend: "#ff8a1f" };
+const COLORS = { you: "#5aaee8", friend: "#ff9466" }; // figures and route lines: blue for you, peach for your friend
 const AREA_COUNT = 3;
 const AREA_SEPARATION_M = 1200; // two suggested spots are at least this far apart
 const MAX_SNAP_M = 400; // a driving sample further than this from a road is in water or a park
 
-// ---------- Keith Haring-style figures ----------
+// ---------- the animal friends ----------
 
+const INK = "#6b5545"; // warm brown for faces and outlines
+
+// Stick figures: a round head and thick limbs with a soft brown outline. You are blue, your friend is peach.
 const POSES = {
   wave:  { head: [50, 20], lines: [[50,34,50,62],[50,40,28,24],[50,40,72,50],[50,62,34,90],[50,62,68,88]] },
   jump:  { head: [50, 20], lines: [[50,34,50,60],[50,40,26,18],[50,40,74,18],[50,60,30,80],[50,60,70,80]] },
   dance: { head: [46, 20], lines: [[48,34,54,60],[50,40,74,28],[50,40,26,54],[54,60,30,84],[54,60,74,90]] },
-  reach: { head: [40, 22], lines: [[44,36,50,62],[46,42,78,18],[46,42,24,54],[50,62,34,90],[50,62,70,86]] },
 };
 
-function figure(color, pose = "wave", size = 40, flip = false, motion = true) {
+function figure(color, pose = "wave", size = 40, flip = false, motion = false) {
   const p = POSES[pose];
   const seg = (w, c) => p.lines.map(([a, b, c2, d]) =>
     `<line x1="${a}" y1="${b}" x2="${c2}" y2="${d}" stroke="${c}" stroke-width="${w}" stroke-linecap="round"/>`).join("");
   const rays = motion
-    ? [[p.head[0] - 20, 6, p.head[0] - 26, 0], [p.head[0], 0, p.head[0], -6], [p.head[0] + 20, 6, p.head[0] + 26, 0], [86, 40, 94, 36], [6, 44, 0, 40]]
-      .map(([a, b, c, d]) => `<line x1="${a}" y1="${b}" x2="${c}" y2="${d}" stroke="#111" stroke-width="4" stroke-linecap="round"/>`).join("")
+    ? [[p.head[0] - 20, 6, p.head[0] - 26, 0], [p.head[0], 0, p.head[0], -6], [p.head[0] + 20, 6, p.head[0] + 26, 0]]
+      .map(([a, b, c, d]) => `<line x1="${a}" y1="${b}" x2="${c}" y2="${d}" stroke="${color}" stroke-width="4.5" stroke-linecap="round"/>`).join("")
     : "";
-  return `<svg width="${size}" height="${size}" viewBox="-4 -10 108 108" style="${flip ? "transform:scaleX(-1)" : ""};overflow:visible">
-    ${rays}${seg(20, "#111")}<circle cx="${p.head[0]}" cy="${p.head[1]}" r="14" fill="#111"/>
-    ${seg(11, color)}<circle cx="${p.head[0]}" cy="${p.head[1]}" r="9.5" fill="${color}"/></svg>`;
+  return `<svg width="${size}" height="${size}" viewBox="-4 -10 108 108" style="${flip ? "transform:scaleX(-1)" : ""};overflow:visible" aria-hidden="true">
+    ${rays}${seg(18, INK)}<circle cx="${p.head[0]}" cy="${p.head[1]}" r="13.5" fill="${INK}"/>
+    ${seg(11, color)}<circle cx="${p.head[0]}" cy="${p.head[1]}" r="10" fill="${color}"/></svg>`;
 }
 
-const bopping = (html, second) => `<span class="bop ${second ? "b2" : ""}" style="display:inline-block">${html}</span>`;
+const you = (size, pose = "wave", motion = false) => figure(COLORS.you, pose, size, false, motion);
+const pal = (size, pose = "wave", motion = false) => figure(COLORS.friend, pose, size, true, motion);
 
-document.getElementById("fig-you").innerHTML = figure(COLORS.you, "wave", 34, false, false);
-document.getElementById("fig-friend").innerHTML = figure(COLORS.friend, "wave", 34, true, false);
+// A round pin with a heart in it: where the two friends meet.
+function meetPin(size = 44) {
+  return `<svg width="${size}" height="${size * 1.2}" viewBox="0 0 100 120" aria-hidden="true">
+    <ellipse cx="50" cy="114" rx="16" ry="4.5" fill="#000" opacity=".12"/>
+    <path d="M50 112 C38 92 12 76 12 48 a38 38 0 0 1 76 0 C88 76 62 92 50 112 Z" fill="#ff9fb6" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>
+    <circle cx="50" cy="47" r="25" fill="#fff"/>
+    <path d="M50 60 C38 51 34 45 37 40 a7 7 0 0 1 13 -1 a7 7 0 0 1 13 1 c3 5 -1 11 -13 20 Z" fill="#ff7c9c"/>
+  </svg>`;
+}
+
+const ICONS = {
+  car: `<svg width="24" height="20" viewBox="0 0 48 40" aria-hidden="true"><path d="M6 26 l4-11 q2-5 8-5 h12 q6 0 8 5 l4 11 v6 q0 2-2 2 H8 q-2 0-2-2 Z" fill="#9fd4f5" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/><rect x="14" y="14" width="20" height="8" rx="3" fill="#fff"/><circle cx="14" cy="33" r="5" fill="${INK}"/><circle cx="34" cy="33" r="5" fill="${INK}"/></svg>`,
+  train: `<svg width="20" height="22" viewBox="0 0 40 44" aria-hidden="true"><rect x="6" y="3" width="28" height="30" rx="9" fill="#a8e2c4" stroke="${INK}" stroke-width="3"/><rect x="11" y="9" width="18" height="10" rx="3" fill="#fff"/><circle cx="14" cy="26" r="2.5" fill="${INK}"/><circle cx="26" cy="26" r="2.5" fill="${INK}"/><path d="M12 41 l4-7 M28 41 l-4-7" stroke="${INK}" stroke-width="3" stroke-linecap="round"/></svg>`,
+};
+
+const bobbing = (html, second) => `<span class="bob ${second ? "b2" : ""}">${html}</span>`;
+
+document.getElementById("fig-you").innerHTML = you(36);
+document.getElementById("fig-friend").innerHTML = pal(36);
+document.getElementById("hero-art").innerHTML = bobbing(you(54, "dance", true)) + `<span class="hero-heart">${meetPin(26)}</span>` + bobbing(pal(54, "jump", true), true);
 const modeButtons = document.querySelectorAll("#modes button");
-modeButtons[0].insertAdjacentHTML("afterbegin", `<svg width="22" height="16" viewBox="0 0 44 30"><path d="M4 20 L8 10 Q10 6 15 6 L30 6 Q34 6 36 10 L40 20 Z" fill="#ff5fa2" stroke="#111" stroke-width="4" stroke-linejoin="round"/><circle cx="12" cy="22" r="5" fill="#111"/><circle cx="32" cy="22" r="5" fill="#111"/></svg>`);
-modeButtons[1].insertAdjacentHTML("afterbegin", `<svg width="18" height="18" viewBox="0 0 36 36"><rect x="5" y="3" width="26" height="24" rx="6" fill="#16a34a" stroke="#111" stroke-width="4"/><rect x="10" y="8" width="16" height="8" fill="#fff" stroke="#111" stroke-width="3"/><line x1="9" y1="33" x2="13" y2="27" stroke="#111" stroke-width="4" stroke-linecap="round"/><line x1="27" y1="33" x2="23" y2="27" stroke="#111" stroke-width="4" stroke-linecap="round"/></svg>`);
+modeButtons[0].insertAdjacentHTML("afterbegin", ICONS.car);
+modeButtons[1].insertAdjacentHTML("afterbegin", ICONS.train);
 
 // ---------- small helpers ----------
 
@@ -343,6 +370,7 @@ const state = {
   friend: { label: "", pos: null },
   results: {}, // mode -> list of areas, for the current pair of addresses
   selected: 0,
+  tab: "eat", // which list of places is showing: "eat" or "see"
   radiusM: 800,
   busy: false,
 };
@@ -364,10 +392,10 @@ map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-le
 let mapReady = false;
 const markers = [];
 
-// Line dashes are measured in line widths, so the black outline and the colour on top
+// Line dashes are measured in line widths, so the white outline and the colour on top
 // get dash patterns scaled to their widths; round caps then make the outline show.
 function dashFor(width, transit) {
-  const [on, off] = transit ? [0.01, 13] : [14, 11];
+  const [on, off] = transit ? [0.01, 14] : [18, 10];
   return [on / width, off / width];
 }
 
@@ -375,21 +403,56 @@ map.on("load", () => {
   const empty = { type: "FeatureCollection", features: [] };
   map.addSource("area", { type: "geojson", data: empty });
   map.addSource("routes", { type: "geojson", data: empty });
-  map.addLayer({ id: "area-fill", type: "fill", source: "area", paint: { "fill-color": "#ffd23f", "fill-opacity": 0.3 } });
+  map.addLayer({ id: "area-fill", type: "fill", source: "area", paint: { "fill-color": "#9ee0c0", "fill-opacity": 0.32 } });
   map.addLayer({ id: "area-edge", type: "line", source: "area",
-    paint: { "line-color": "#111111", "line-width": 4, "line-dasharray": [2.5, 2] } });
+    paint: { "line-color": "#4fb58a", "line-width": 3.5, "line-dasharray": [2, 1.6] } });
   for (const who of ["you", "friend"]) {
     const filter = ["==", ["get", "who"], who];
     map.addLayer({ id: `route-${who}-edge`, type: "line", source: "routes", filter,
-      layout: { "line-cap": "round" }, paint: { "line-color": "#111111", "line-width": 9 } });
+      layout: { "line-cap": "round" }, paint: { "line-color": "#ffffff", "line-width": 10 } });
     map.addLayer({ id: `route-${who}`, type: "line", source: "routes", filter,
-      layout: { "line-cap": "round" }, paint: { "line-color": COLORS[who], "line-width": 5 } });
+      layout: { "line-cap": "round" }, paint: { "line-color": COLORS[who], "line-width": 6 } });
   }
   // Start with the map credits folded into the (i) button, so they don't cover the map on phones.
   document.querySelector(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show");
   mapReady = true;
   drawMap();
 });
+
+const placeMarkers = new Map(); // "eat0" -> marker
+
+function placePin(tab, n, hl) {
+  return `<span class="pin ${tab} ${hl ? "hl" : ""}">${n}</span>`;
+}
+
+// Numbered pins for the places around the selected spot; the tab that is showing is drawn on top.
+function drawPlaces() {
+  placeMarkers.forEach((m) => m.remove());
+  placeMarkers.clear();
+  if (!mapReady) return;
+  const area = state.results[state.mode]?.[state.selected];
+  if (!area) return;
+  const places = placesFor(area);
+  for (const tab of state.tab === "eat" ? ["see", "eat"] : ["eat", "see"]) {
+    places[tab].forEach((p, i) => {
+      const el = document.createElement("div");
+      el.className = `pin-wrap ${tab === state.tab ? "" : "faded"}`;
+      el.innerHTML = placePin(tab, i + 1, false);
+      el.addEventListener("mouseenter", () => highlightPlace(tab, i, true));
+      el.addEventListener("mouseleave", () => highlightPlace(tab, i, false));
+      const popup = new maplibregl.Popup({ offset: 16, closeButton: false }).setHTML(
+        `<div class="pop"><b>${esc(p.name)}</b><span>${esc(p.meta)}</span>
+          <a href="${placeLink(p)}" target="_blank" rel="noopener">Open in Google Maps &#8599;</a>
+          <a class="src" href="${esc(p.source)}" target="_blank" rel="noopener">Source: ${p.sourceName} &#8599;</a></div>`);
+      placeMarkers.set(tab + i, new maplibregl.Marker({ element: el }).setLngLat([p.pos[1], p.pos[0]]).setPopup(popup).addTo(map));
+    });
+  }
+}
+
+function highlightPlace(tab, i, on) {
+  placeMarkers.get(tab + i)?.getElement().querySelector(".pin")?.classList.toggle("hl", on);
+  document.querySelector(`.place[data-key="${tab}${i}"]`)?.classList.toggle("hl", on);
+}
 
 function circlePolygon([lat, lng], radiusM) {
   const ring = [];
@@ -409,14 +472,12 @@ function addMarker(pos, html, className) {
   markers.push(new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat([pos[1], pos[0]]).addTo(map));
 }
 
-function personMarker(pos, name, color, flip) {
-  addMarker(pos, `${figure(color, "wave", 54, flip)}<span class="who">${name}</span>`, "person-marker");
+function personMarker(pos, name) {
+  addMarker(pos, `${name === "You" ? you(52) : pal(52)}<span class="who">${name}</span>`, "person-marker");
 }
 
 function meetMarker(center) {
-  // Sit the pair on the circle's top edge so they never cover what is inside it.
-  const top = [center[0] + state.radiusM / 111320, center[1]];
-  addMarker(top, `${figure(COLORS.you, "reach", 46, false, false)}<span style="margin-left:-14px">${figure(COLORS.friend, "reach", 46, true, false)}</span>`, "meet-marker");
+  addMarker(center, meetPin(44), "meet-marker");
 }
 
 function drawMap() {
@@ -430,26 +491,30 @@ function drawMap() {
     for (const [who, p] of [["you", state.you.pos], ["friend", state.friend.pos]]) {
       routes.push({ type: "Feature", properties: { who },
         geometry: { type: "LineString", coordinates: [[p[1], p[0]], [area.pos[1], area.pos[0]]] } });
-      map.setPaintProperty(`route-${who}-edge`, "line-dasharray", dashFor(9, transit));
-      map.setPaintProperty(`route-${who}`, "line-dasharray", dashFor(5, transit));
+      map.setPaintProperty(`route-${who}-edge`, "line-dasharray", dashFor(10, transit));
+      map.setPaintProperty(`route-${who}`, "line-dasharray", dashFor(6, transit));
     }
   }
   map.getSource("routes").setData({ type: "FeatureCollection", features: routes });
   map.getSource("area").setData({ type: "FeatureCollection", features: area ? [circlePolygon(area.pos, state.radiusM)] : [] });
-  if (state.you.pos) personMarker(state.you.pos, "You", COLORS.you, false);
-  if (state.friend.pos) personMarker(state.friend.pos, "Friend", COLORS.friend, true);
-  const padding = isPhone() ? 30 : 60;
+  if (state.you.pos) personMarker(state.you.pos, "You");
+  if (state.friend.pos) personMarker(state.friend.pos, "Friend");
+  // Keep both people, their lines and the meeting circle in view. The figures stand above
+  // their spot with a name tag under their feet, so leave room above and below.
+  const pad = isPhone() ? { top: 70, bottom: 40, left: 36, right: 36 } : { top: 90, bottom: 60, left: 70, right: 70 };
+  const points = [state.you.pos, state.friend.pos].filter(Boolean);
   if (area) {
     meetMarker(area.pos);
-    const r = state.radiusM * 1.3;
-    const dLat = r / 111320, dLng = r / (111320 * Math.cos(area.pos[0] * Math.PI / 180));
-    map.fitBounds([[area.pos[1] - dLng, area.pos[0] - dLat], [area.pos[1] + dLng, area.pos[0] + dLat]],
-      { padding: { top: padding + 50, bottom: padding, left: padding, right: padding }, duration: 700 });
-  } else if (state.you.pos && state.friend.pos) {
-    map.fitBounds([[state.you.pos[1], state.you.pos[0]], [state.friend.pos[1], state.friend.pos[0]]],
-      { padding: padding + 40, duration: 700 });
-  } else if (state.you.pos) {
-    map.flyTo({ center: [state.you.pos[1], state.you.pos[0]], zoom: 13, duration: 700 });
+    const dLat = state.radiusM / 111320, dLng = state.radiusM / (111320 * Math.cos(area.pos[0] * Math.PI / 180));
+    points.push([area.pos[0] - dLat, area.pos[1] - dLng], [area.pos[0] + dLat, area.pos[1] + dLng]);
+  }
+  drawPlaces();
+  if (points.length > 1) {
+    const lats = points.map((p) => p[0]), lngs = points.map((p) => p[1]);
+    map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
+      { padding: pad, duration: 700, maxZoom: 15 });
+  } else if (points.length === 1) {
+    map.flyTo({ center: [points[0][1], points[0][0]], zoom: 13, duration: 700 });
   }
 }
 
@@ -476,20 +541,20 @@ function googleSearch(what, a) {
 
 function renderStart() {
   $("results").innerHTML = `<div class="state">
-    <div class="figs">${figure(COLORS.you, "wave", 56)}${figure(COLORS.friend, "wave", 56, true)}</div>
+    <div class="figs">${you(60)}${pal(60)}</div>
     <p class="big">Where are you two?</p>
     <p>Add both addresses and pick how you're getting there. We'll find spots that take you about the same time.</p></div>`;
 }
 
 function renderBusy(text) {
   $("results").innerHTML = `<div class="state">
-    <div class="figs">${bopping(figure(COLORS.you, "dance", 56))}${bopping(figure(COLORS.friend, "jump", 56, true), true)}</div>
+    <div class="figs">${bobbing(you(60, "dance"))}${bobbing(pal(60, "jump"), true)}</div>
     <p class="big">${esc(text)}</p></div>`;
 }
 
 function renderError(message) {
   $("results").innerHTML = `<div class="state error">
-    <div class="figs">${figure("#e8302a", "jump", 56, false, false)}</div>
+    <div class="figs">${you(60, "jump")}</div>
     <p class="big">Hmm, that didn't work</p><p>${esc(message)}</p></div>`;
 }
 
@@ -513,7 +578,9 @@ function renderList() {
             <a href="${directionsLink(state.friend.pos, a.pos, state.mode)}" target="_blank" rel="noopener">Friend's route &#8599;</a>
           </div>
           ${a.near ? `<p class="near">${esc(a.near)}</p>` : ""}${a.summary ? `<p class="summary">${esc(a.summary)}</p>` : ""}
+          ${idx === state.selected ? renderPlaces(a) : ""}
           <div class="explore">
+            <span>More on Google:</span>
             <a class="btn eat" href="${googleMapsSearch("restaurants", a)}" target="_blank" rel="noopener">Places to eat &#8599;</a>
             <a class="btn see" href="${googleSearch("things to do", a)}" target="_blank" rel="noopener">Things to do &#8599;</a>
           </div>
@@ -527,6 +594,169 @@ function renderList() {
     `<div class="footnote">${state.mode === "drive"
       ? "Driving times assume normal traffic-free roads, so rush hour will run longer."
       : "Transit times are for leaving now and include walking to the stop."}</div>`;
+}
+
+// ---------- places to eat and things to do ----------
+
+// Notable places, as Wikidata knows them: quick to fetch, but only well-known places are in it.
+const WIKIDATA_PLACES = {
+  Q11707: ["eat", "Restaurant"], Q30022: ["eat", "Café"], Q187456: ["eat", "Bar"], Q212198: ["eat", "Pub"], Q274393: ["eat", "Bakery"],
+  Q33506: ["see", "Museum"], Q207694: ["see", "Art museum"], Q1007870: ["see", "Art gallery"], Q22698: ["see", "Park"],
+  Q4989906: ["see", "Monument"], Q11315: ["see", "Shopping centre"], Q570116: ["see", "Attraction"], Q24354: ["see", "Theatre"],
+  Q41253: ["see", "Cinema"], Q330284: ["see", "Market"], Q174782: ["see", "Plaza"], Q863454: ["see", "Pier"], Q7075: ["see", "Library"],
+};
+
+// Everyday places, as OpenStreetMap knows them: almost every restaurant and shop, but slow to fetch.
+const OSM_KINDS = {
+  amenity: { restaurant: ["eat", "Restaurant"], cafe: ["eat", "Café"], bar: ["eat", "Bar"], pub: ["eat", "Pub"], ice_cream: ["eat", "Ice cream"],
+    food_court: ["eat", "Food court"], theatre: ["see", "Theatre"], cinema: ["see", "Cinema"], arts_centre: ["see", "Arts centre"],
+    marketplace: ["see", "Market"] },
+  shop: { bakery: ["eat", "Bakery"], deli: ["eat", "Deli"], chocolate: ["eat", "Chocolate shop"], cheese: ["eat", "Cheese shop"],
+    mall: ["see", "Shopping centre"], books: ["see", "Bookshop"], department_store: ["see", "Department store"], gift: ["see", "Gift shop"],
+    toys: ["see", "Toy shop"], music: ["see", "Record shop"], games: ["see", "Game shop"], art: ["see", "Art shop"], wine: ["see", "Wine shop"] },
+  tourism: { attraction: ["see", "Attraction"], museum: ["see", "Museum"], gallery: ["see", "Art gallery"], viewpoint: ["see", "Viewpoint"],
+    zoo: ["see", "Zoo"], aquarium: ["see", "Aquarium"], theme_park: ["see", "Theme park"] },
+  leisure: { park: ["see", "Park"], garden: ["see", "Garden"] },
+};
+const PLACES_PER_TAB = 8;
+const placesCache = new Map();
+
+function placesKey(area) {
+  return `${area.pos[0].toFixed(4)},${area.pos[1].toFixed(4)},${state.radiusM}`;
+}
+
+async function wikidataPlaces(center, radiusM) {
+  const kinds = Object.keys(WIKIDATA_PLACES).map((q) => `wd:${q}`).join(" ");
+  const query = `SELECT ?item ?itemLabel ?type ?loc ?links ?article WHERE {
+    SERVICE wikibase:around { ?item wdt:P625 ?loc . bd:serviceParam wikibase:center "Point(${center[1]} ${center[0]})"^^geo:wktLiteral .
+      bd:serviceParam wikibase:radius "${(radiusM / 1000).toFixed(2)}" . }
+    VALUES ?type { ${kinds} }
+    ?item wdt:P31 ?type ; wikibase:sitelinks ?links .
+    OPTIONAL { ?article schema:about ?item ; schema:isPartOf <https://en.wikipedia.org/> . }
+    SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+  } LIMIT 200`;
+  const j = await getJson(`${SERVICES.wikidata}?format=json&query=${encodeURIComponent(query)}`, "places");
+  const out = [];
+  for (const b of j.results.bindings) {
+    const name = b.itemLabel.value;
+    const m = /Point\(([-\d.]+) ([-\d.]+)\)/.exec(b.loc.value);
+    if (/^Q\d+$/.test(name) || !m) continue;
+    const [tab, meta] = WIKIDATA_PLACES[b.type.value.split("/").pop()];
+    out.push({ name: name.replace(/ \((restaurant|San Francisco|museum)\)$/i, ""), tab, meta, pos: [+m[2], +m[1]],
+      rank: 100 + Math.min(+b.links.value, 40), source: b.article ? b.article.value : b.item.value,
+      sourceName: b.article ? "Wikipedia" : "Wikidata", raw: b });
+  }
+  return out;
+}
+
+function osmQuery(center, radiusM) {
+  const around = `(around:${Math.round(radiusM)},${center[0]},${center[1]})`;
+  const clauses = Object.entries(OSM_KINDS).map(([key, values]) =>
+    `nwr["${key}"~"^(${Object.keys(values).join("|")})$"]["name"]${around};`).join("");
+  return `[out:json][timeout:20];(${clauses});out tags center 400;`;
+}
+
+async function fetchWithTimeout(url, ms) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), ms);
+  try { return await fetch(url, { signal: ctl.signal }); } finally { clearTimeout(timer); }
+}
+
+async function osmPlaces(center, radiusM) {
+  const data = encodeURIComponent(osmQuery(center, radiusM));
+  for (const server of SERVICES.overpass) {
+    try {
+      const r = await fetchWithTimeout(`${server}?data=${data}`, 25000);
+      if (!r.ok) continue;
+      const j = await r.json();
+      return j.elements.map((e) => osmPlace(e, center, radiusM)).filter(Boolean);
+    } catch (e) {
+      // busy or unreachable: try the next server
+    }
+  }
+  throw new UserFacingError("OpenStreetMap is busy right now.");
+}
+
+function osmPlace(e, center, radiusM) {
+  const t = e.tags || {};
+  let kind = null;
+  for (const [key, values] of Object.entries(OSM_KINDS)) if (values[t[key]]) { kind = values[t[key]]; break; }
+  const lat = e.lat ?? e.center?.lat, lon = e.lon ?? e.center?.lon;
+  if (!kind || lat == null) return null;
+  const [tab, label] = kind;
+  const cuisine = t.cuisine ? t.cuisine.split(";").slice(0, 2).map((c) => c.replace(/_/g, " ")).join(", ") : "";
+  const meta = tab === "eat" && cuisine ? `${label}, ${cuisine}` : label;
+  // No ratings in OpenStreetMap; well-documented independent places tend to be the ones worth a visit.
+  const rank = (t.wikidata ? 6 : 0) + (t.wikipedia ? 4 : 0) + (t.website || t["contact:website"] ? 2 : 0) + (t.opening_hours ? 1 : 0)
+    + (cuisine ? 0.5 : 0) + (t.brand ? -3 : 0) - (2 * metersBetween(center, [lat, lon])) / radiusM;
+  return { name: t.name, tab, meta, pos: [lat, lon], rank, source: `https://www.openstreetmap.org/${e.type}/${e.id}`,
+    sourceName: "OpenStreetMap", raw: e };
+}
+
+// Notable places first, then everyday ones; a place both sources know is listed once.
+function mergePlaces(lists) {
+  const out = { eat: [], see: [] };
+  const all = lists.flat().sort((a, b) => b.rank - a.rank);
+  for (const p of all) {
+    const tab = out[p.tab];
+    const dupe = tab.some((q) => q.name.toLowerCase() === p.name.toLowerCase()
+      || (metersBetween(q.pos, p.pos) < 60 && q.name.toLowerCase().split(" ")[0] === p.name.toLowerCase().split(" ")[0]));
+    if (!dupe && tab.length < PLACES_PER_TAB) tab.push(p);
+  }
+  return out;
+}
+
+function loadPlaces(area) {
+  const key = placesKey(area);
+  if (placesCache.has(key)) return;
+  const entry = { eat: [], see: [], wiki: "loading", osm: "loading", parts: {} };
+  placesCache.set(key, entry);
+  const update = () => {
+    Object.assign(entry, mergePlaces([entry.parts.wiki || [], entry.parts.osm || []]));
+    const current = state.results[state.mode]?.[state.selected];
+    if (current && placesKey(current) === key) { renderList(); drawPlaces(); }
+  };
+  wikidataPlaces(area.pos, state.radiusM)
+    .then((list) => { entry.parts.wiki = list; entry.wiki = "done"; })
+    .catch(() => { entry.wiki = "failed"; })
+    .finally(update);
+  osmPlaces(area.pos, state.radiusM)
+    .then((list) => { entry.parts.osm = list; entry.osm = "done"; })
+    .catch(() => { entry.osm = "failed"; })
+    .finally(update);
+}
+
+function placesFor(area) {
+  return placesCache.get(placesKey(area)) || { eat: [], see: [], wiki: "loading", osm: "loading" };
+}
+
+function placeLink(p) {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.name} ${p.pos[0].toFixed(5)},${p.pos[1].toFixed(5)}`)}`;
+}
+
+function renderPlaces(a) {
+  const places = placesFor(a);
+  const list = places[state.tab];
+  const loading = places.wiki === "loading" || places.osm === "loading";
+  const rows = list.map((p, i) => `
+    <div class="place" data-key="${state.tab}${i}">
+      <span class="n ${state.tab}">${i + 1}</span>
+      <div class="place-text"><div class="pname">${esc(p.name)}</div><div class="meta">${esc(p.meta)}</div></div>
+      <a href="${placeLink(p)}" target="_blank" rel="noopener">Google Maps &#8599;</a>
+    </div>`).join("");
+  let note = "";
+  if (loading) note = list.length ? "Finding more places..." : "Finding places nearby...";
+  else if (!list.length) note = state.tab === "eat"
+    ? "No places to eat found around here. Try a bigger area, or search Google below."
+    : "No shops or things to do found around here. Try a bigger area, or search Google below.";
+  else if (places.osm === "failed") note = "Showing well-known places only; the everyday-places map is busy right now.";
+  return `
+    <div class="tabs">
+      <button type="button" data-tab="eat" class="${state.tab === "eat" ? "on" : ""}">Places to eat</button>
+      <button type="button" data-tab="see" class="${state.tab === "see" ? "on" : ""}">Shops &amp; things to do</button>
+    </div>
+    <div class="place-list">${rows}</div>
+    ${note ? `<p class="places-note ${loading ? "loading" : ""}">${note}</p>` : ""}`;
 }
 
 // ---------- search ----------
@@ -570,8 +800,7 @@ async function search() {
       state.results[state.mode] = areas;
     }
     state.selected = 0;
-    renderList();
-    drawMap();
+    showSelected();
   } catch (e) {
     renderError(e instanceof UserFacingError ? e.message : "Something unexpected went wrong. Try again.");
     if (!(e instanceof UserFacingError)) console.error(e);
@@ -624,14 +853,42 @@ $("modes").addEventListener("click", (e) => {
   else { renderList(); drawMap(); }
 });
 
+function showSelected() {
+  const area = state.results[state.mode]?.[state.selected];
+  if (area) loadPlaces(area);
+  renderList();
+  drawMap();
+}
+
 $("results").addEventListener("click", (e) => {
   const t = e.target;
   if (t.closest("a")) return;
-  if (t.dataset.r) { state.radiusM = +t.dataset.r; renderList(); drawMap(); return; }
+  if (t.dataset.r) { state.radiusM = +t.dataset.r; showSelected(); return; }
+  if (t.dataset.tab) { state.tab = t.dataset.tab; renderList(); drawPlaces(); return; }
+  const row = t.closest(".place");
+  if (row) {
+    // Show the place on the map; on a phone the map is above the list, so scroll up to it.
+    const m = placeMarkers.get(row.dataset.key);
+    if (isPhone()) $("map").scrollIntoView({ behavior: "smooth" });
+    if (m) {
+      map.flyTo({ center: m.getLngLat(), zoom: Math.max(map.getZoom(), 15.5), duration: 700 });
+      placeMarkers.forEach((x) => x.getPopup()?.isOpen() && x.togglePopup());
+      m.togglePopup();
+    }
+    return;
+  }
   const area = t.closest(".area");
-  if (area && +area.dataset.idx !== state.selected) { state.selected = +area.dataset.idx; renderList(); drawMap(); }
+  if (area && +area.dataset.idx !== state.selected) { state.selected = +area.dataset.idx; showSelected(); }
 });
 
+$("results").addEventListener("mouseover", (e) => {
+  const row = e.target.closest(".place");
+  if (row) highlightPlace(row.dataset.key.slice(0, 3), +row.dataset.key.slice(3), true);
+});
+$("results").addEventListener("mouseout", (e) => {
+  const row = e.target.closest(".place");
+  if (row) highlightPlace(row.dataset.key.slice(0, 3), +row.dataset.key.slice(3), false);
+});
 
 renderStart();
 locate();
